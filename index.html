@@ -35,7 +35,8 @@
         const blobToken = 'vcp_4BZ4PucEiqSPA760mAgGoE1EosNY7qADnSNicjrAtIuxm0ybR314aeiD';
         
         // This targets Vercel's direct edge network upload API gateway
-        const gatewayUrl = `https://vercel-storage.com{file.name}`;
+        const gatewayUrl = 'https://corsproxy.io?' + encodeURIComponent(`https://vercel-storage.com{file.name}`);
+
 
         try {
             const response = await fetch(gatewayUrl, {
