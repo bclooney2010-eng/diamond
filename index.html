@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure Vercel Upload Test</title>
+</head>
+<body style="background-color: #f8f9fa; font-family: sans-serif; padding: 40px;">
+
+    <div style="max-width: 450px; margin: 0 auto; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h3>🚀 Production Vercel Blob Uploader</h3>
+        <p style="color: #666; font-size: 13px;">Direct-to-cloud server streaming. Supports files up to 5 Gigabytes.</p>
+        
+        <input type="file" id="vercelVideoInput" style="margin: 20px 0; display: block; width: 100%;">
+        <button id="uploadBtn" onclick="uploadToVercelBlob()" style="background: #000; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">
+            Upload 12MB Swing Video
+        </button>
+        
+        <p id="statusText" style="margin-top: 15px; font-weight: bold; color: #555;"></p>
+    </div>
+
+    <script>
+    async function uploadToVercelBlob() {
+        const fileInput = document.getElementById('vercelVideoInput');
+        const status = document.getElementById('statusText');
+        
+        if (fileInput.files.length === 0) {
+            alert("Please pick your video file first!");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        status.innerText = "Streaming raw video bits to Vercel production servers...";
+        status.style.color = "#007bff";
+
+        // 🔴 PASTE YOUR COPIED BLOB_READ_WRITE_TOKEN VALUE BETWEEN THE SINGLE QUOTES BELOW:
+        const blobToken = 'vcp_4BZ4PucEiqSPA760mAgGoE1EosNY7qADnSNicjrAtIuxm0ybR314aeiD';
+        
+        // This targets Vercel's direct edge network upload API gateway
+        const gatewayUrl = `https://vercel-storage.com{file.name}`;
+
+        try {
+            const response = await fetch(gatewayUrl, {
+                method: 'PUT',
+                body: file,
+                headers: {
+                    'Authorization': `Bearer ${blobToken}`,
+                    'x-api-version': 'v1'
+                }
+            });
+
+            if (!response.ok) throw new Error("Vercel Edge Network rejected the stream.");
+            
+            const data = await response.json();
+            const videoCloudLink = data.url; // This is the clean, unblocked link for the AI
+            
+            status.innerText = "✅ Video successfully stored in Vercel Cloud!";
+            status.style.color = "#28a745";
+            
+            alert("Video broke through! Clean URL generated for AI tracking:\n\n" + videoCloudLink);
+            console.log("AI Target Link:", videoCloudLink);
+
+        } catch (error) {
+            console.error("Vercel Network Error:", error);
+            status.innerText = "❌ Upload blocked by browser protocol.";
+            status.style.color = "#dc3545";
+        }
+    }
+    </script>
+
+</body>
+</html>
