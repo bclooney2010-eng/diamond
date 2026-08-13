@@ -1,71 +1,184 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Secure Vercel Upload Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseball Analytics Test Box</title>
 </head>
-<body style="background-color: #f8f9fa; font-family: sans-serif; padding: 40px;">
 
-    <div style="max-width: 450px; margin: 0 auto; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <h3>🚀 Production Vercel Blob Uploader</h3>
-        <p style="color: #666; font-size: 13px;">Direct-to-cloud server streaming. Supports files up to 5 Gigabytes.</p>
-        
-        <input type="file" id="vercelVideoInput" style="margin: 20px 0; display: block; width: 100%;">
-        <button id="uploadBtn" onclick="uploadToVercelBlob()" style="background: #000; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">
-            Upload 12MB Swing Video
+<body style="
+    background-color: #f8f9fa;
+    font-family: Arial, sans-serif;
+    padding: 40px;
+">
+
+    <div style="
+        max-width: 450px;
+        margin: 0 auto;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        text-align: center;
+    ">
+
+        <h3>⚾ Swing Data Connection Box</h3>
+
+        <p style="
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+        ">
+            Testing file transmission from GitHub Pages to Make.com.
+        </p>
+
+        <input
+            type="file"
+            id="swingVideoInput"
+            accept="video/*"
+            style="
+                margin: 20px 0;
+                display: block;
+                width: 100%;
+            "
+        >
+
+        <button
+            id="uploadBtn"
+            type="button"
+            style="
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 12px;
+                width: 100%;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 4px;
+                cursor: pointer;
+            "
+        >
+            Send Test File
         </button>
-        
-        <p id="statusText" style="margin-top: 15px; font-weight: bold; color: #555;"></p>
+
+        <p
+            id="statusText"
+            style="
+                margin-top: 15px;
+                font-weight: bold;
+                color: #555;
+                word-break: break-word;
+            "
+        ></p>
+
     </div>
 
     <script>
-    async function uploadToVercelBlob() {
-        const fileInput = document.getElementById('vercelVideoInput');
-        const status = document.getElementById('statusText');
-        
-        if (fileInput.files.length === 0) {
-            alert("Please pick your video file first!");
-            return;
-        }
+        // IMPORTANT:
+        // Replace this with the EXACT Custom Webhook URL
+        // copied from Make.com.
+        const WEBHOOK_URL = "PASTE_YOUR_REAL_MAKE_WEBHOOK_URL_HERE";
 
-        const file = fileInput.files[0];
-        status.innerText = "Streaming raw video bits to Vercel production servers...";
-        status.style.color = "#007bff";
+        const fileInput = document.getElementById("swingVideoInput");
+        const uploadButton = document.getElementById("uploadBtn");
+        const status = document.getElementById("statusText");
 
-        // 🔴 PASTE YOUR COPIED BLOB_READ_WRITE_TOKEN VALUE BETWEEN THE SINGLE QUOTES BELOW:
-        const blobToken = 'vcp_4BZ4PucEiqSPA760mAgGoE1EosNY7qADnSNicjrAtIuxm0ybR314aeiD';
-        
-        // This targets Vercel's direct edge network upload API gateway
-        const gatewayUrl = 'https://corsproxy.io?' + encodeURIComponent(`https://vercel-storage.com{file.name}`);
+        uploadButton.addEventListener("click", uploadSwingVideo);
 
+        async function uploadSwingVideo() {
 
-        try {
-            const response = await fetch(gatewayUrl, {
-                method: 'PUT',
-                body: file,
-                headers: {
-                    'Authorization': `Bearer ${blobToken}`,
-                    'x-api-version': 'v1'
+            // Make sure a file was actually selected.
+            if (!fileInput.files || fileInput.files.length === 0) {
+                status.textContent = "❌ Please select a video first.";
+                status.style.color = "#dc3545";
+                return;
+            }
+
+            // IMPORTANT:
+            // files[0] is the actual File object.
+            const file = fileInput.files[0];
+
+            // Basic sanity check.
+            console.log("Selected file:", file.name);
+            console.log("File type:", file.type);
+            console.log("File size:", file.size, "bytes");
+
+            const sizeMB = file.size / (1024 * 1024);
+
+            status.textContent =
+                `Preparing ${file.name} (${sizeMB.toFixed(2)} MB)...`;
+
+            status.style.color = "#007bff";
+
+            uploadButton.disabled = true;
+            uploadButton.style.opacity = "0.6";
+            uploadButton.style.cursor = "wait";
+
+            try {
+
+                /*
+                 * FormData automatically creates the correct
+                 * multipart/form-data boundary.
+                 *
+                 * DO NOT manually set:
+                 *
+                 * headers: {
+                 *     "Content-Type": "multipart/form-data"
+                 * }
+                 *
+                 * Doing that can break the multipart boundary.
+                 */
+                const formData = new FormData();
+
+                // Make expects the uploaded file under "file".
+                formData.append("file", file, file.name);
+
+                // Optional metadata.
+                formData.append("filename", file.name);
+                formData.append("filesize", String(file.size));
+                formData.append("filetype", file.type || "application/octet-stream");
+
+                status.textContent = "⬆️ Uploading video to Make.com...";
+
+                const response = await fetch(WEBHOOK_URL, {
+                    method: "POST",
+                    body: formData
+                });
+
+                console.log("Make response status:", response.status);
+
+                if (!response.ok) {
+                    throw new Error(
+                        `Make returned HTTP ${response.status}`
+                    );
                 }
-            });
 
-            if (!response.ok) throw new Error("Vercel Edge Network rejected the stream.");
-            
-            const data = await response.json();
-            const videoCloudLink = data.url; // This is the clean, unblocked link for the AI
-            
-            status.innerText = "✅ Video successfully stored in Vercel Cloud!";
-            status.style.color = "#28a745";
-            
-            alert("Video broke through! Clean URL generated for AI tracking:\n\n" + videoCloudLink);
-            console.log("AI Target Link:", videoCloudLink);
+                status.textContent =
+                    "✅ Upload successful! Make.com accepted the request.";
 
-        } catch (error) {
-            console.error("Vercel Network Error:", error);
-            status.innerText = "❌ Upload blocked by browser protocol.";
-            status.style.color = "#dc3545";
+                status.style.color = "#28a745";
+
+                console.log("Upload completed successfully.");
+
+            } catch (error) {
+
+                console.error("Upload error:", error);
+
+                status.textContent =
+                    "❌ Upload failed. Open the browser Console (F12) for details.";
+
+                status.style.color = "#dc3545";
+
+            } finally {
+
+                uploadButton.disabled = false;
+                uploadButton.style.opacity = "1";
+                uploadButton.style.cursor = "pointer";
+            }
         }
-    }
     </script>
 
+</body>
+</html>
 </body>
 </html>
