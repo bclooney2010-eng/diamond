@@ -291,14 +291,41 @@
             }
 
 
-            // ==========================================
-            // SUCCESS
-            // ==========================================
+           // ==========================================
+// SAVE VIDEO RECORD TO DATABASE
+// ==========================================
 
-            console.log(
-                "Supabase upload successful:",
-                data
-            );
+const { error: dbError } = await supabaseClient
+    .from("videos")
+    .insert({
+        file_name: file.name,
+        storage_path: data.path,
+        status: "uploaded"
+    });
+
+if (dbError) {
+    console.error("Database error:", dbError);
+    throw dbError;
+}
+
+
+// ==========================================
+// SUCCESS
+// ==========================================
+
+console.log("Supabase upload successful:", data);
+
+status.innerHTML = `
+    ✅ <strong>Upload successful!</strong><br>
+    Your video is now stored in Supabase.
+`;
+
+status.style.color = "#16a34a";
+
+console.log(
+    "Stored file path:",
+    data.path
+);
 
 
             status.innerHTML = `
