@@ -3,182 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baseball Analytics Test Box</title>
+
+    <title>Baseball Swing Analyzer</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            background: #f5f7fa;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 7px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+            line-height: 1.5;
+        }
+
+        .file-info {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f1f5f9;
+            border-radius: 7px;
+            font-size: 14px;
+            word-break: break-word;
+        }
+    </style>
 </head>
 
-<body style="
-    background-color: #f8f9fa;
-    font-family: Arial, sans-serif;
-    padding: 40px;
-">
+<body>
 
-    <div style="
-        max-width: 450px;
-        margin: 0 auto;
-        padding: 20px;
-        background: white;
-        border-radius: 8px;
-        border: 1px solid #ddd;
-        text-align: center;
-    ">
+<div class="container">
 
-        <h3>⚾ Swing Data Connection Box</h3>
+    <h1>⚾ Baseball Swing Analyzer</h1>
 
-        <p style="
-            color: #666;
-            font-size: 13px;
-            line-height: 1.5;
-        ">
-            Testing file transmission from GitHub Pages to Make.com.
-        </p>
+    <p class="subtitle">
+        Upload a swing video for analysis.
+    </p>
 
-        <input
-            type="file"
-            id="swingVideoInput"
-            accept="video/*"
-            style="
-                margin: 20px 0;
-                display: block;
-                width: 100%;
-            "
-        >
+    <input
+        type="file"
+        id="videoInput"
+        accept="video/*"
+    >
 
-        <button
-            id="uploadBtn"
-            type="button"
-            style="
-                background: #007bff;
-                color: white;
-                border: none;
-                padding: 12px;
-                width: 100%;
-                font-size: 16px;
-                font-weight: bold;
-                border-radius: 4px;
-                cursor: pointer;
-            "
-        >
-            Send Test File
-        </button>
+    <div
+        id="fileInfo"
+        class="file-info"
+        style="display: none;"
+    ></div>
 
-        <p
-            id="statusText"
-            style="
-                margin-top: 15px;
-                font-weight: bold;
-                color: #555;
-                word-break: break-word;
-            "
-        ></p>
+    <button
+        id="uploadButton"
+        type="button"
+    >
+        Upload Swing Video
+    </button>
 
-    </div>
+    <div id="status"></div>
 
-    <script>
-        // IMPORTANT:
-        // Replace this with the EXACT Custom Webhook URL
-        // copied from Make.com.
-        const WEBHOOK_URL = "PASTE_YOUR_REAL_MAKE_WEBHOOK_URL_HERE";
+</div>
 
-        const fileInput = document.getElementById("swingVideoInput");
-        const uploadButton = document.getElementById("uploadBtn");
-        const status = document.getElementById("statusText");
 
-        uploadButton.addEventListener("click", uploadSwingVideo);
+<!-- Supabase JavaScript library -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-        async function uploadSwingVideo() {
 
-            // Make sure a file was actually selected.
-            if (!fileInput.files || fileInput.files.length === 0) {
-                status.textContent = "❌ Please select a video first.";
-                status.style.color = "#dc3545";
-                return;
-            }
+<script>
 
-            // IMPORTANT:
-            // files[0] is the actual File object.
-            const file = fileInput.files[0];
+    // ==========================================
+    // SUPABASE CONFIGURATION
+    // ==========================================
 
-            // Basic sanity check.
-            console.log("Selected file:", file.name);
-            console.log("File type:", file.type);
-            console.log("File size:", file.size, "bytes");
+    const SUPABASE_URL =
+        "https://jyvjpfvhylqmxmephu.supabase.co";
 
-            const sizeMB = file.size / (1024 * 1024);
+    const SUPABASE_PUBLISHABLE_KEY =
+        "sb_publishable_gsbjFsIvUIFZZWVSDERtyw_ba_pfAl8";
+
+
+    // Create Supabase client
+    const supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY
+    );
+
+
+    // ==========================================
+    // PAGE ELEMENTS
+    // ==========================================
+
+    const videoInput =
+        document.getElementById("videoInput");
+
+    const uploadButton =
+        document.getElementById("uploadButton");
+
+    const status =
+        document.getElementById("status");
+
+    const fileInfo =
+        document.getElementById("fileInfo");
+
+
+    // ==========================================
+    // SHOW SELECTED FILE
+    // ==========================================
+
+    videoInput.addEventListener("change", function () {
+
+        if (!videoInput.files || videoInput.files.length === 0) {
+
+            fileInfo.style.display = "none";
+
+            return;
+        }
+
+
+        const file = videoInput.files[0];
+
+        const sizeMB =
+            file.size / (1024 * 1024);
+
+
+        fileInfo.innerHTML = `
+            <strong>Selected:</strong> ${file.name}<br>
+            <strong>Type:</strong> ${file.type || "Unknown"}<br>
+            <strong>Size:</strong> ${sizeMB.toFixed(2)} MB
+        `;
+
+        fileInfo.style.display = "block";
+
+    });
+
+
+    // ==========================================
+    // UPLOAD VIDEO
+    // ==========================================
+
+    uploadButton.addEventListener("click", uploadVideo);
+
+
+    async function uploadVideo() {
+
+        // Make sure a file exists
+        if (!videoInput.files || videoInput.files.length === 0) {
 
             status.textContent =
-                `Preparing ${file.name} (${sizeMB.toFixed(2)} MB)...`;
+                "❌ Please select a video first.";
 
-            status.style.color = "#007bff";
+            status.style.color = "#dc2626";
 
-            uploadButton.disabled = true;
-            uploadButton.style.opacity = "0.6";
-            uploadButton.style.cursor = "wait";
-
-            try {
-
-                /*
-                 * FormData automatically creates the correct
-                 * multipart/form-data boundary.
-                 *
-                 * DO NOT manually set:
-                 *
-                 * headers: {
-                 *     "Content-Type": "multipart/form-data"
-                 * }
-                 *
-                 * Doing that can break the multipart boundary.
-                 */
-                const formData = new FormData();
-
-                // Make expects the uploaded file under "file".
-                formData.append("file", file, file.name);
-
-                // Optional metadata.
-                formData.append("filename", file.name);
-                formData.append("filesize", String(file.size));
-                formData.append("filetype", file.type || "application/octet-stream");
-
-                status.textContent = "⬆️ Uploading video to Make.com...";
-
-                const response = await fetch(WEBHOOK_URL, {
-                    method: "POST",
-                    body: formData
-                });
-
-                console.log("Make response status:", response.status);
-
-                if (!response.ok) {
-                    throw new Error(
-                        `Make returned HTTP ${response.status}`
-                    );
-                }
-
-                status.textContent =
-                    "✅ Upload successful! Make.com accepted the request.";
-
-                status.style.color = "#28a745";
-
-                console.log("Upload completed successfully.");
-
-            } catch (error) {
-
-                console.error("Upload error:", error);
-
-                status.textContent =
-                    "❌ Upload failed. Open the browser Console (F12) for details.";
-
-                status.style.color = "#dc3545";
-
-            } finally {
-
-                uploadButton.disabled = false;
-                uploadButton.style.opacity = "1";
-                uploadButton.style.cursor = "pointer";
-            }
+            return;
         }
-    </script>
 
-</body>
-</html>
+
+        // Get the actual File object
+        const file = videoInput.files[0];
+
+
+        const sizeMB =
+            file.size / (1024 * 1024);
+
+
+        console.log("Selected file:", file);
+        console.log("Name:", file.name);
+        console.log("Type:", file.type);
+        console.log("Size:", file.size);
+        console.log("Size MB:", sizeMB);
+
+
+        // Disable button while uploading
+        uploadButton.disabled = true;
+
+        status.textContent =
+            "⬆️ Uploading video to Supabase...";
+
+        status.style.color = "#2563eb";
+
+
+        try {
+
+            /*
+             * Create a unique filename.
+             *
+             * Example:
+             *
+             * 1723591234567-swing.mp4
+             */
+
+            const safeFileName =
+                file.name.replace(
+                    /[^a-zA-Z0-9._-]/g,
+                    "_"
+                );
+
+
+            const filePath =
+                Date.now() + "-" + safeFileName;
+
+
+            console.log(
+                "Uploading to:",
+                "Baseball-videos/" + filePath
+            );
+
+
+            // ==========================================
+            // SEND FILE TO SUPABASE STORAGE
+            // ==========================================
+
+            const { data, error } =
+                await supabaseClient
+                    .storage
+                    .from("Baseball-videos")
+                    .upload(
+                        filePath,
+                        file,
+                        {
+                            cacheControl: "3600",
+                            upsert: false,
+                            contentType:
+                                file.type || "video/mp4"
+                        }
+                    );
+
+
+            // ==========================================
+            // CHECK FOR SUPABASE ERROR
+            // ==========================================
+
+            if (error) {
+
+                console.error(
+                    "Supabase upload error:",
+                    error
+                );
+
+                throw error;
+            }
+
+
+            // ==========================================
+            // SUCCESS
+            // ==========================================
+
+            console.log(
+                "Supabase upload successful:",
+                data
+            );
+
+
+            status.innerHTML = `
+                ✅ <strong>Upload successful!</strong><br>
+                Your video is now stored in Supabase.
+            `;
+
+            status.style.color = "#16a34a";
+
+
+            console.log(
+                "Stored file path:",
+                data.path
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Upload failed:",
+                error
+            );
+
+
+            status.innerHTML = `
+                ❌ <strong>Upload failed.</strong><br>
+                ${error.message || "Unknown error"}
+            `;
+
+            status.style.color = "#dc2626";
+
+
+        } finally {
+
+            uploadButton.disabled = false;
+
+        }
+
+    }
+
+</script>
+
 </body>
 </html>
