@@ -314,6 +314,21 @@ if (dbError) {
 // ==========================================
 
 console.log("Supabase upload successful:", data);
+// Save video information in the videos database table
+const { error: dbError } = await supabaseClient
+    .from("videos")
+    .insert({
+        file_name: file.name,
+        storage_path: data.path,
+        status: "uploaded"
+    });
+
+if (dbError) {
+    console.error("Database insert error:", dbError);
+    throw dbError;
+}
+
+console.log("Video record saved to database.");
 
 status.innerHTML = `
     ✅ <strong>Upload successful!</strong><br>
