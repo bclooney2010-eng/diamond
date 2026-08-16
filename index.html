@@ -315,14 +315,15 @@ if (dbError) {
 
 console.log("Supabase upload successful:", data);
 // Save video information in the videos database table
-const { error: videodbError } = await supabaseClient
+const { data: videoRecord, error: videodbError } = await supabaseClient
     .from("videos")
     .insert({
         file_name: file.name,
         storage_path: data.path,
         status: "uploaded"
-    });
-
+    })
+    .select("id")
+    .single();
 if (videodbError) {
     console.error("Database insert error:", dbError);
     throw videodbError;
