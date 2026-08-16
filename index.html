@@ -325,7 +325,7 @@ const { data: videoRecord, error: videodbError } = await supabaseClient
     .select("id")
     .single();
 if (videodbError) {
-    console.error("Database insert error:", dbError);
+    console.error("Database insert error:", videodbError);
     throw videodbError;
 }
 
