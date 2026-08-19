@@ -76,17 +76,6 @@
             word-break: break-word;
         }
     </style>
-
-    <!-- MediaPipe Pose Landmarker -->
-    <script type="module">
-        import {
-            FilesetResolver,
-            PoseLandmarker
-        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm";
-
-        console.log("MediaPipe loaded successfully.");
-    </script>
-
 </head>
 
 <body>
@@ -122,10 +111,8 @@
 
 </div>
 
-
 <!-- Supabase JavaScript library -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 
 <script>
 
@@ -139,8 +126,6 @@
     const SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_gsbjFsIvUIFZZWVSDERtyw_ba_pfAl8";
 
-
-    // Create Supabase client
     const supabaseClient = window.supabase.createClient(
         SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY
@@ -171,18 +156,14 @@
     videoInput.addEventListener("change", function () {
 
         if (!videoInput.files || videoInput.files.length === 0) {
-
             fileInfo.style.display = "none";
-
             return;
         }
-
 
         const file = videoInput.files[0];
 
         const sizeMB =
             file.size / (1024 * 1024);
-
 
         fileInfo.innerHTML = `
             <strong>Selected:</strong> ${file.name}<br>
@@ -191,7 +172,6 @@
         `;
 
         fileInfo.style.display = "block";
-
     });
 
 
@@ -204,7 +184,6 @@
 
     async function uploadVideo() {
 
-        // Make sure a file exists
         if (!videoInput.files || videoInput.files.length === 0) {
 
             status.textContent =
@@ -215,14 +194,10 @@
             return;
         }
 
-
-        // Get the actual File object
         const file = videoInput.files[0];
-
 
         const sizeMB =
             file.size / (1024 * 1024);
-
 
         console.log("Selected file:", file);
         console.log("Name:", file.name);
@@ -230,8 +205,6 @@
         console.log("Size:", file.size);
         console.log("Size MB:", sizeMB);
 
-
-        // Disable button while uploading
         uploadButton.disabled = true;
 
         status.textContent =
@@ -242,13 +215,9 @@
 
         try {
 
-            /*
-             * Create a unique filename.
-             *
-             * Example:
-             *
-             * 1723591234567-swing.mp4
-             */
+            // ==========================================
+            // CREATE UNIQUE FILE NAME
+            // ==========================================
 
             const safeFileName =
                 file.name.replace(
@@ -256,10 +225,8 @@
                     "_"
                 );
 
-
             const filePath =
                 Date.now() + "-" + safeFileName;
-
 
             console.log(
                 "Uploading to:",
@@ -288,7 +255,7 @@
 
 
             // ==========================================
-            // CHECK FOR SUPABASE ERROR
+            // CHECK STORAGE ERROR
             // ==========================================
 
             if (error) {
@@ -302,15 +269,15 @@
             }
 
 
-            // ==========================================
-            // SAVE VIDEO RECORD TO DATABASE
-            // ==========================================
-
             console.log(
                 "Supabase upload successful:",
                 data
             );
 
+
+            // ==========================================
+            // SAVE VIDEO RECORD TO DATABASE
+            // ==========================================
 
             const {
                 data: videoRecord,
@@ -335,6 +302,12 @@
 
                 throw videodbError;
             }
+
+
+            console.log(
+                "Video record saved:",
+                videoRecord
+            );
 
 
             // ==========================================
@@ -371,11 +344,6 @@
             );
 
 
-            console.log(
-                "Video record saved to database."
-            );
-
-
             // ==========================================
             // SUCCESS
             // ==========================================
@@ -386,7 +354,6 @@
             `;
 
             status.style.color = "#16a34a";
-
 
             console.log(
                 "Stored file path:",
@@ -401,7 +368,6 @@
                 error
             );
 
-
             status.innerHTML = `
                 ❌ <strong>Upload failed.</strong><br>
                 ${error.message || "Unknown error"}
@@ -415,8 +381,23 @@
             uploadButton.disabled = false;
 
         }
-
     }
+
+</script>
+
+
+<!-- ==========================================
+     MEDIAPIPE TEST
+     ========================================== -->
+
+<script type="module">
+
+    import {
+        FilesetResolver,
+        PoseLandmarker
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm";
+
+    console.log("MediaPipe loaded successfully.");
 
 </script>
 
