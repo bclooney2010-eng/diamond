@@ -242,32 +242,80 @@
     // LOAD MEDIAPIPE
     // ==========================================
 
-    async function initializeMediaPipe() {
+async function initializeMediaPipe() {
 
-        try {
+    try {
 
-            status.textContent =
-                "Loading MediaPipe pose model...";
+        status.textContent =
+            "Loading MediaPipe pose model...";
 
-            status.style.color = "#2563eb";
+        status.style.color = "#2563eb";
 
-            const {
-    FilesetResolver,
-    PoseLandmarker
-} = await import(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm"
-);
-
-
-            const vision =
-                await FilesetResolver.forVisionTasks(
-                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
-                );
+        const {
+            FilesetResolver,
+            PoseLandmarker
+        } = await import(
+            "https://unpkg.com/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
+        );
 
 
-            poseLandmarker =
-                await PoseLandmarker.createFromOptions(
-                    vision,
+        const vision =
+            await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+            );
+
+
+        poseLandmarker =
+            await PoseLandmarker.createFromOptions(
+                vision,
+                {
+                    baseOptions: {
+                        modelAssetPath:
+                            MODEL_URL
+                    },
+
+                    runningMode: "VIDEO",
+
+                    numPoses: 1,
+
+                    minPoseDetectionConfidence: 0.5,
+
+                    minPosePresenceConfidence: 0.5,
+
+                    minTrackingConfidence: 0.5
+                }
+            );
+
+
+        mediaPipeReady = true;
+
+        console.log(
+            "MediaPipe Pose Landmarker initialized."
+        );
+
+        status.textContent =
+            "MediaPipe ready. Select a swing video.";
+
+        status.style.color = "#16a34a";
+
+
+    } catch (error) {
+
+        console.error(
+            "MediaPipe initialization failed:",
+            error
+        );
+
+        mediaPipeReady = false;
+
+        status.innerHTML = `
+            ❌ <strong>MediaPipe failed to load.</strong><br>
+            ${error.message || "Unknown error"}
+        `;
+
+        status.style.color = "#dc2626";
+    }
+}
                     {
                         baseOptions: {
                             modelAssetPath: MODEL_URL
