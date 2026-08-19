@@ -76,6 +76,17 @@
             word-break: break-word;
         }
     </style>
+
+    <!-- MediaPipe Pose Landmarker -->
+    <script type="module">
+        import {
+            FilesetResolver,
+            PoseLandmarker
+        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm";
+
+        console.log("MediaPipe loaded successfully.");
+    </script>
+
 </head>
 
 <body>
@@ -291,62 +302,88 @@
             }
 
 
-           // ==========================================
-// SAVE VIDEO RECORD TO DATABASE
-// ==========================================
+            // ==========================================
+            // SAVE VIDEO RECORD TO DATABASE
+            // ==========================================
+
+            console.log(
+                "Supabase upload successful:",
+                data
+            );
 
 
+            const {
+                data: videoRecord,
+                error: videodbError
+            } = await supabaseClient
+                .from("videos")
+                .insert({
+                    file_name: file.name,
+                    storage_path: data.path,
+                    status: "uploaded"
+                })
+                .select("id")
+                .single();
 
 
-// ==========================================
-// SUCCESS
-// ==========================================
+            if (videodbError) {
 
-console.log("Supabase upload successful:", data);
-// Save video information in the videos database table
-const { data: videoRecord, error: videodbError } = await supabaseClient
-    .from("videos")
-    .insert({
-        file_name: file.name,
-        storage_path: data.path,
-        status: "uploaded"
-    })
-    .select("id")
-    .single();
-if (videodbError) {
-    console.error("Database insert error:", videodbError);
-    throw videodbError;
-}
-// Start video analysis
-const { data: analysisResponse, error: analysisError } =
-    await supabaseClient.functions.invoke("analyze-video", {
-        body: {
-            video_id: videoRecord.id
-        }
-    });
+                console.error(
+                    "Database insert error:",
+                    videodbError
+                );
 
-if (analysisError) {
-    console.error("Analysis function error:", analysisError);
-    throw analysisError;
-}
-
-console.log("Analysis started:", analysisResponse);
-console.log("Video record saved to database.");
-
-status.innerHTML = `
-    ✅ <strong>Upload successful!</strong><br>
-    Your video is now stored in Supabase.
-`;
-
-status.style.color = "#16a34a";
-
-console.log(
-    "Stored file path:",
-    data.path
-);
+                throw videodbError;
+            }
 
 
-          
+            // ==========================================
+            // START VIDEO ANALYSIS
+            // ==========================================
+
+            const {
+                data: analysisResponse,
+                error: analysisError
+            } = await supabaseClient.functions.invoke(
+                "analyze-video",
+                {
+                    body: {
+                        video_id: videoRecord.id
+                    }
+                }
+            );
+
+
+            if (analysisError) {
+
+                console.error(
+                    "Analysis function error:",
+                    analysisError
+                );
+
+                throw analysisError;
+            }
+
+
+            console.log(
+                "Analysis started:",
+                analysisResponse
+            );
+
+
+            console.log(
+                "Video record saved to database."
+            );
+
+
+            // ==========================================
+            // SUCCESS
+            // ==========================================
+
+            status.innerHTML = `
+                ✅ <strong>Upload successful!</strong><br>
+                Your video is now stored in Supabase.
+            `;
 
             status.style.color = "#16a34a";
 
