@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Baseball Swing Analyzer</title>
+    <title>Diamond Catalyst - Baseball Swing Analyzer</title>
 
     <style>
         body {
@@ -15,7 +15,7 @@
         }
 
         .container {
-            max-width: 500px;
+            max-width: 600px;
             margin: 0 auto;
             background: white;
             padding: 30px;
@@ -75,6 +75,46 @@
             font-size: 14px;
             word-break: break-word;
         }
+
+        .analysis {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .analysis h2 {
+            margin-top: 0;
+        }
+
+        .metric {
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 7px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .warning {
+            padding: 14px;
+            margin-top: 15px;
+            background: #fff7ed;
+            border-radius: 7px;
+            border: 1px solid #fed7aa;
+        }
+
+        .success {
+            padding: 14px;
+            margin-top: 15px;
+            background: #f0fdf4;
+            border-radius: 7px;
+            border: 1px solid #bbf7d0;
+        }
+
+        #processingVideo {
+            display: none;
+        }
     </style>
 </head>
 
@@ -82,10 +122,10 @@
 
 <div class="container">
 
-    <h1>⚾ Baseball Swing Analyzer</h1>
+    <h1>⚾ Diamond Catalyst</h1>
 
     <p class="subtitle">
-        Upload a swing video for analysis.
+        Upload a swing video for computer-vision analysis.
     </p>
 
     <input
@@ -104,15 +144,35 @@
         id="uploadButton"
         type="button"
     >
-        Upload Swing Video
+        Analyze Swing
     </button>
 
     <div id="status"></div>
 
+    <video
+        id="processingVideo"
+        muted
+        playsinline
+        preload="metadata"
+    ></video>
+
+    <div id="analysis" class="analysis">
+
+        <h2>MediaPipe Analysis</h2>
+
+        <div id="analysisContent"></div>
+
+    </div>
+
 </div>
 
-<!-- Supabase JavaScript library -->
+
+<!-- ==========================================
+     SUPABASE
+     ========================================== -->
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 
 <script>
 
@@ -126,10 +186,11 @@
     const SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_gsbjFsIvUIFZZWVSDERtyw_ba_pfAl8";
 
-    const supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY
-    );
+    const supabaseClient =
+        window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_PUBLISHABLE_KEY
+        );
 
 
     // ==========================================
@@ -148,76 +209,981 @@
     const fileInfo =
         document.getElementById("fileInfo");
 
+    const processingVideo =
+        document.getElementById("processingVideo");
+
+    const analysis =
+        document.getElementById("analysis");
+
+    const analysisContent =
+        document.getElementById("analysisContent");
+
+
+    // ==========================================
+    // MEDIAPIPE VARIABLES
+    // ==========================================
+
+    let poseLandmarker = null;
+
+    let mediaPipeReady = false;
+
+
+    // ==========================================
+    // MEDIAPIPE MODEL
+    // ==========================================
+
+    const MEDIAPIPE_VERSION = "0.10.22";
+
+    const MODEL_URL =
+        "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
+
+
+    // ==========================================
+    // LOAD MEDIAPIPE
+    // ==========================================
+
+    async function initializeMediaPipe() {
+
+        try {
+
+            status.textContent =
+                "Loading MediaPipe pose model...";
+
+            status.style.color = "#2563eb";
+
+            const {
+                FilesetResolver,
+                PoseLandmarker
+            } = await import(
+                `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/+esm`
+            );
+
+
+            const vision =
+                await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+                );
+
+
+            poseLandmarker =
+                await PoseLandmarker.createFromOptions(
+                    vision,
+                    {
+                        baseOptions: {
+                            modelAssetPath: MODEL_URL
+                        },
+
+                        runningMode: "VIDEO",
+
+                        numPoses: 1,
+
+                        minPoseDetectionConfidence: 0.5,
+
+                        minPosePresenceConfidence: 0.5,
+
+                        minTrackingConfidence: 0.5
+                    }
+                );
+
+
+            mediaPipeReady = true;
+
+            console.log(
+                "MediaPipe Pose Landmarker initialized."
+            );
+
+            status.textContent =
+                "MediaPipe ready. Select a swing video.";
+
+            status.style.color = "#16a34a";
+
+
+        } catch (error) {
+
+            console.error(
+                "MediaPipe initialization failed:",
+                error
+            );
+
+            mediaPipeReady = false;
+
+            status.innerHTML = `
+                ❌ <strong>MediaPipe failed to load.</strong><br>
+                ${error.message || "Unknown error"}
+            `;
+
+            status.style.color = "#dc2626";
+        }
+    }
+
 
     // ==========================================
     // SHOW SELECTED FILE
     // ==========================================
 
-    videoInput.addEventListener("change", function () {
+    videoInput.addEventListener(
+        "change",
+        function () {
 
-        if (!videoInput.files || videoInput.files.length === 0) {
-            fileInfo.style.display = "none";
+            if (
+                !videoInput.files ||
+                videoInput.files.length === 0
+            ) {
+
+                fileInfo.style.display = "none";
+
+                return;
+            }
+
+            const file =
+                videoInput.files[0];
+
+            const sizeMB =
+                file.size / (1024 * 1024);
+
+            fileInfo.innerHTML = `
+                <strong>Selected:</strong> ${file.name}<br>
+                <strong>Type:</strong> ${file.type || "Unknown"}<br>
+                <strong>Size:</strong> ${sizeMB.toFixed(2)} MB
+            `;
+
+            fileInfo.style.display = "block";
+        }
+    );
+
+
+    // ==========================================
+    // LOAD VIDEO INTO BROWSER
+    // ==========================================
+
+    async function loadVideoForAnalysis(file) {
+
+        return new Promise(
+            (resolve, reject) => {
+
+                const videoURL =
+                    URL.createObjectURL(file);
+
+                processingVideo.src =
+                    videoURL;
+
+                processingVideo.onloadedmetadata =
+                    () => {
+
+                        console.log(
+                            "Video loaded:",
+                            {
+                                duration:
+                                    processingVideo.duration,
+
+                                width:
+                                    processingVideo.videoWidth,
+
+                                height:
+                                    processingVideo.videoHeight
+                            }
+                        );
+
+                        resolve();
+
+                    };
+
+                processingVideo.onerror =
+                    () => {
+
+                        reject(
+                            new Error(
+                                "The browser could not load this video."
+                            )
+                        );
+
+                    };
+            }
+        );
+    }
+
+
+    // ==========================================
+    // LANDMARK HELPER
+    // ==========================================
+
+    function getLandmark(
+        landmarks,
+        index
+    ) {
+
+        if (
+            !landmarks ||
+            !landmarks[index]
+        ) {
+
+            return null;
+        }
+
+        return landmarks[index];
+    }
+
+
+    // ==========================================
+    // DISTANCE BETWEEN TWO POINTS
+    // ==========================================
+
+    function distance(a, b) {
+
+        if (!a || !b) {
+            return null;
+        }
+
+        return Math.sqrt(
+            Math.pow(a.x - b.x, 2) +
+            Math.pow(a.y - b.y, 2)
+        );
+    }
+
+
+    // ==========================================
+    // PROCESS VIDEO WITH MEDIAPIPE
+    // ==========================================
+
+    async function analyzeVideoWithMediaPipe(file) {
+
+        if (!mediaPipeReady) {
+
+            throw new Error(
+                "MediaPipe is not ready yet."
+            );
+        }
+
+
+        await loadVideoForAnalysis(file);
+
+
+        const duration =
+            processingVideo.duration;
+
+        if (
+            !duration ||
+            !Number.isFinite(duration) ||
+            duration <= 0
+        ) {
+
+            throw new Error(
+                "The video duration could not be determined."
+            );
+        }
+
+
+        // ------------------------------------------
+        // ANALYSIS SETTINGS
+        // ------------------------------------------
+
+        // We don't need every frame initially.
+        // Processing approximately 30 frames per
+        // second gives us useful movement data
+        // without immediately creating an enormous
+        // computation load.
+
+        const sampleFPS = 30;
+
+        const frameInterval =
+            1 / sampleFPS;
+
+
+        const totalFrames =
+            Math.max(
+                1,
+                Math.ceil(
+                    duration * sampleFPS
+                )
+            );
+
+
+        let processedFrames = 0;
+
+        let detectedFrames = 0;
+
+
+        const headPositions = [];
+
+        const hipPositions = [];
+
+        const shoulderPositions = [];
+
+
+        // ------------------------------------------
+        // PROCESS FRAMES
+        // ------------------------------------------
+
+        for (
+            let frame = 0;
+            frame < totalFrames;
+            frame++
+        ) {
+
+            const time =
+                Math.min(
+                    frame * frameInterval,
+                    Math.max(
+                        0,
+                        duration - 0.001
+                    )
+                );
+
+
+            processingVideo.currentTime =
+                time;
+
+
+            await new Promise(
+                resolve => {
+
+                    const handler =
+                        () => {
+
+                            processingVideo
+                                .removeEventListener(
+                                    "seeked",
+                                    handler
+                                );
+
+                            resolve();
+                        };
+
+                    processingVideo
+                        .addEventListener(
+                            "seeked",
+                            handler,
+                            { once: true }
+                        );
+                }
+            );
+
+
+            const timestampMs =
+                Math.round(
+                    time * 1000
+                );
+
+
+            let result;
+
+            try {
+
+                result =
+                    poseLandmarker.detectForVideo(
+                        processingVideo,
+                        timestampMs
+                    );
+
+            } catch (error) {
+
+                console.warn(
+                    "MediaPipe frame error:",
+                    error
+                );
+
+                continue;
+            }
+
+
+            processedFrames++;
+
+
+            if (
+                !result ||
+                !result.landmarks ||
+                result.landmarks.length === 0
+            ) {
+
+                continue;
+            }
+
+
+            const landmarks =
+                result.landmarks[0];
+
+
+            detectedFrames++;
+
+
+            // ======================================
+            // MEDIAPIPE POSE LANDMARK INDICES
+            // ======================================
+            //
+            // 0  = nose
+            // 11 = left shoulder
+            // 12 = right shoulder
+            // 23 = left hip
+            // 24 = right hip
+            //
+            // These are part of the Pose Landmarker
+            // landmark set.
+            // ======================================
+
+            const nose =
+                getLandmark(
+                    landmarks,
+                    0
+                );
+
+            const leftShoulder =
+                getLandmark(
+                    landmarks,
+                    11
+                );
+
+            const rightShoulder =
+                getLandmark(
+                    landmarks,
+                    12
+                );
+
+            const leftHip =
+                getLandmark(
+                    landmarks,
+                    23
+                );
+
+            const rightHip =
+                getLandmark(
+                    landmarks,
+                    24
+                );
+
+
+            // --------------------------------------
+            // HEAD
+            // --------------------------------------
+
+            if (nose) {
+
+                headPositions.push({
+                    time,
+                    x: nose.x,
+                    y: nose.y,
+                    z: nose.z
+                });
+
+            }
+
+
+            // --------------------------------------
+            // SHOULDERS
+            // --------------------------------------
+
+            if (
+                leftShoulder &&
+                rightShoulder
+            ) {
+
+                shoulderPositions.push({
+
+                    time,
+
+                    x:
+                        (
+                            leftShoulder.x +
+                            rightShoulder.x
+                        ) / 2,
+
+                    y:
+                        (
+                            leftShoulder.y +
+                            rightShoulder.y
+                        ) / 2
+                });
+
+            }
+
+
+            // --------------------------------------
+            // HIPS
+            // --------------------------------------
+
+            if (
+                leftHip &&
+                rightHip
+            ) {
+
+                hipPositions.push({
+
+                    time,
+
+                    x:
+                        (
+                            leftHip.x +
+                            rightHip.x
+                        ) / 2,
+
+                    y:
+                        (
+                            leftHip.y +
+                            rightHip.y
+                        ) / 2
+                });
+
+            }
+
+
+            // --------------------------------------
+            // UPDATE UI
+            // --------------------------------------
+
+            if (
+                frame % 10 === 0
+            ) {
+
+                const percent =
+                    Math.round(
+                        (
+                            frame /
+                            totalFrames
+                        ) * 100
+                    );
+
+                status.textContent =
+                    `🧠 MediaPipe analyzing swing... ${percent}%`;
+
+            }
+
+        }
+
+
+        // ==========================================
+        // CALCULATE BASIC MEASUREMENTS
+        // ==========================================
+
+        const poseCoverage =
+            processedFrames > 0
+                ? detectedFrames / processedFrames
+                : 0;
+
+
+        // ------------------------------------------
+        // HEAD MOVEMENT
+        // ------------------------------------------
+
+        let headHorizontalMovement = null;
+        let headVerticalMovement = null;
+
+
+        if (
+            headPositions.length >= 2
+        ) {
+
+            const xs =
+                headPositions.map(
+                    point => point.x
+                );
+
+            const ys =
+                headPositions.map(
+                    point => point.y
+                );
+
+
+            headHorizontalMovement =
+                Math.max(...xs) -
+                Math.min(...xs);
+
+
+            headVerticalMovement =
+                Math.max(...ys) -
+                Math.min(...ys);
+        }
+
+
+        // ------------------------------------------
+        // HIP MOVEMENT
+        // ------------------------------------------
+
+        let hipHorizontalMovement = null;
+        let hipVerticalMovement = null;
+
+
+        if (
+            hipPositions.length >= 2
+        ) {
+
+            const xs =
+                hipPositions.map(
+                    point => point.x
+                );
+
+            const ys =
+                hipPositions.map(
+                    point => point.y
+                );
+
+
+            hipHorizontalMovement =
+                Math.max(...xs) -
+                Math.min(...xs);
+
+
+            hipVerticalMovement =
+                Math.max(...ys) -
+                Math.min(...ys);
+        }
+
+
+        // ------------------------------------------
+        // SHOULDER MOVEMENT
+        // ------------------------------------------
+
+        let shoulderHorizontalMovement = null;
+        let shoulderVerticalMovement = null;
+
+
+        if (
+            shoulderPositions.length >= 2
+        ) {
+
+            const xs =
+                shoulderPositions.map(
+                    point => point.x
+                );
+
+            const ys =
+                shoulderPositions.map(
+                    point => point.y
+                );
+
+
+            shoulderHorizontalMovement =
+                Math.max(...xs) -
+                Math.min(...xs);
+
+
+            shoulderVerticalMovement =
+                Math.max(...ys) -
+                Math.min(...ys);
+        }
+
+
+        // ==========================================
+        // DETERMINE WHETHER WE HAVE ENOUGH DATA
+        // ==========================================
+
+        const enoughPoseData =
+            detectedFrames >= 10 &&
+            poseCoverage >= 0.30;
+
+
+        const confidence =
+            poseCoverage >= 0.80
+                ? "high"
+                : poseCoverage >= 0.50
+                    ? "moderate"
+                    : poseCoverage >= 0.30
+                        ? "low"
+                        : "insufficient";
+
+
+        // ==========================================
+        // BUILD ANALYSIS OBJECT
+        // ==========================================
+
+        const result = {
+
+            analysis_status:
+                enoughPoseData
+                    ? "pose_detected"
+                    : "insufficient_information",
+
+            confidence,
+
+            video: {
+
+                duration_seconds:
+                    Number(
+                        duration.toFixed(2)
+                    ),
+
+                processed_frames:
+                    processedFrames,
+
+                detected_pose_frames:
+                    detectedFrames,
+
+                pose_coverage:
+                    Number(
+                        poseCoverage.toFixed(3)
+                    )
+            },
+
+            measurements: {
+
+                head_movement: {
+
+                    horizontal_range:
+                        headHorizontalMovement !== null
+                            ? Number(
+                                headHorizontalMovement
+                                    .toFixed(4)
+                            )
+                            : null,
+
+                    vertical_range:
+                        headVerticalMovement !== null
+                            ? Number(
+                                headVerticalMovement
+                                    .toFixed(4)
+                            )
+                            : null
+                },
+
+                hip_movement: {
+
+                    horizontal_range:
+                        hipHorizontalMovement !== null
+                            ? Number(
+                                hipHorizontalMovement
+                                    .toFixed(4)
+                            )
+                            : null,
+
+                    vertical_range:
+                        hipVerticalMovement !== null
+                            ? Number(
+                                hipVerticalMovement
+                                    .toFixed(4)
+                            )
+                            : null
+                },
+
+                shoulder_movement: {
+
+                    horizontal_range:
+                        shoulderHorizontalMovement !== null
+                            ? Number(
+                                shoulderHorizontalMovement
+                                    .toFixed(4)
+                            )
+                            : null,
+
+                    vertical_range:
+                        shoulderVerticalMovement !== null
+                            ? Number(
+                                shoulderVerticalMovement
+                                    .toFixed(4)
+                            )
+                            : null
+                }
+            },
+
+            information_limitations:
+                enoughPoseData
+                    ? []
+                    : [
+                        "MediaPipe could not track the player's pose through enough of the video to support reliable swing analysis."
+                    ]
+        };
+
+
+        return result;
+    }
+
+
+    // ==========================================
+    // DISPLAY MEDIAPIPE RESULTS
+    // ==========================================
+
+    function displayAnalysis(result) {
+
+        analysis.style.display =
+            "block";
+
+
+        if (
+            result.analysis_status ===
+            "insufficient_information"
+        ) {
+
+            analysisContent.innerHTML = `
+
+                <div class="warning">
+
+                    <strong>
+                        ⚠️ Not enough information
+                    </strong>
+
+                    <p>
+                        MediaPipe could not reliably
+                        track the player's body through
+                        enough of the video.
+                    </p>
+
+                    <p>
+                        We will not make swing-mechanics
+                        claims from insufficient data.
+                    </p>
+
+                </div>
+
+                <div class="metric">
+                    <strong>Pose coverage:</strong>
+                    ${(result.video.pose_coverage * 100).toFixed(1)}%
+                </div>
+
+            `;
+
             return;
         }
 
-        const file = videoInput.files[0];
 
-        const sizeMB =
-            file.size / (1024 * 1024);
+        analysisContent.innerHTML = `
 
-        fileInfo.innerHTML = `
-            <strong>Selected:</strong> ${file.name}<br>
-            <strong>Type:</strong> ${file.type || "Unknown"}<br>
-            <strong>Size:</strong> ${sizeMB.toFixed(2)} MB
+            <div class="success">
+
+                <strong>
+                    ✅ MediaPipe detected a usable pose
+                </strong>
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Confidence:</strong>
+                ${result.confidence}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Pose coverage:</strong>
+                ${(result.video.pose_coverage * 100).toFixed(1)}%
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Head horizontal movement:</strong>
+                ${result.measurements.head_movement.horizontal_range ?? "Not available"}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Head vertical movement:</strong>
+                ${result.measurements.head_movement.vertical_range ?? "Not available"}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Hip horizontal movement:</strong>
+                ${result.measurements.hip_movement.horizontal_range ?? "Not available"}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Hip vertical movement:</strong>
+                ${result.measurements.hip_movement.vertical_range ?? "Not available"}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Shoulder horizontal movement:</strong>
+                ${result.measurements.shoulder_movement.horizontal_range ?? "Not available"}
+
+            </div>
+
+            <div class="metric">
+
+                <strong>Shoulder vertical movement:</strong>
+                ${result.measurements.shoulder_movement.vertical_range ?? "Not available"}
+
+            </div>
+
+            <p style="color:#666;font-size:13px;">
+                These are raw movement measurements.
+                They are not yet being interpreted as
+                good or bad swing mechanics.
+            </p>
+
         `;
-
-        fileInfo.style.display = "block";
-    });
+    }
 
 
     // ==========================================
-    // UPLOAD VIDEO
+    // UPLOAD VIDEO + ANALYZE
     // ==========================================
 
-    uploadButton.addEventListener("click", uploadVideo);
+    uploadButton.addEventListener(
+        "click",
+        uploadAndAnalyzeVideo
+    );
 
 
-    async function uploadVideo() {
+    async function uploadAndAnalyzeVideo() {
 
-        if (!videoInput.files || videoInput.files.length === 0) {
+        if (
+            !videoInput.files ||
+            videoInput.files.length === 0
+        ) {
 
             status.textContent =
                 "❌ Please select a video first.";
 
-            status.style.color = "#dc2626";
+            status.style.color =
+                "#dc2626";
 
             return;
         }
 
-        const file = videoInput.files[0];
 
-        const sizeMB =
-            file.size / (1024 * 1024);
+        const file =
+            videoInput.files[0];
 
-        console.log("Selected file:", file);
-        console.log("Name:", file.name);
-        console.log("Type:", file.type);
-        console.log("Size:", file.size);
-        console.log("Size MB:", sizeMB);
 
-        uploadButton.disabled = true;
+        uploadButton.disabled =
+            true;
 
-        status.textContent =
-            "⬆️ Uploading video to Supabase...";
 
-        status.style.color = "#2563eb";
+        analysis.style.display =
+            "none";
 
 
         try {
 
-            // ==========================================
+            // ======================================
+            // MEDIAPIPE FIRST
+            // ======================================
+
+            status.textContent =
+                "🧠 Preparing MediaPipe...";
+
+            status.style.color =
+                "#2563eb";
+
+
+            const mediaPipeResult =
+                await analyzeVideoWithMediaPipe(
+                    file
+                );
+
+
+            console.log(
+                "REAL MEDIAPIPE RESULT:",
+                mediaPipeResult
+            );
+
+
+            displayAnalysis(
+                mediaPipeResult
+            );
+
+
+            // ======================================
             // CREATE UNIQUE FILE NAME
-            // ==========================================
+            // ======================================
+
+            status.textContent =
+                "⬆️ Uploading video to Supabase...";
+
 
             const safeFileName =
                 file.name.replace(
@@ -225,20 +1191,21 @@
                     "_"
                 );
 
+
             const filePath =
-                Date.now() + "-" + safeFileName;
-
-            console.log(
-                "Uploading to:",
-                "Baseball-videos/" + filePath
-            );
+                Date.now() +
+                "-" +
+                safeFileName;
 
 
-            // ==========================================
-            // SEND FILE TO SUPABASE STORAGE
-            // ==========================================
+            // ======================================
+            // UPLOAD VIDEO
+            // ======================================
 
-            const { data, error } =
+            const {
+                data,
+                error
+            } =
                 await supabaseClient
                     .storage
                     .from("Baseball-videos")
@@ -246,26 +1213,23 @@
                         filePath,
                         file,
                         {
-                            cacheControl: "3600",
-                            upsert: false,
+                            cacheControl:
+                                "3600",
+
+                            upsert:
+                                false,
+
                             contentType:
-                                file.type || "video/mp4"
+                                file.type ||
+                                "video/mp4"
                         }
                     );
 
 
-            // ==========================================
-            // CHECK STORAGE ERROR
-            // ==========================================
-
             if (error) {
 
-                console.error(
-                    "Supabase upload error:",
-                    error
-                );
-
                 throw error;
+
             }
 
 
@@ -275,32 +1239,36 @@
             );
 
 
-            // ==========================================
-            // SAVE VIDEO RECORD TO DATABASE
-            // ==========================================
+            // ======================================
+            // SAVE VIDEO RECORD
+            // ======================================
 
             const {
                 data: videoRecord,
                 error: videodbError
-            } = await supabaseClient
-                .from("videos")
-                .insert({
-                    file_name: file.name,
-                    storage_path: data.path,
-                    status: "uploaded"
-                })
-                .select("id")
-                .single();
+            } =
+                await supabaseClient
+                    .from("videos")
+                    .insert({
+
+                        file_name:
+                            file.name,
+
+                        storage_path:
+                            data.path,
+
+                        status:
+                            "uploaded"
+
+                    })
+                    .select("id")
+                    .single();
 
 
             if (videodbError) {
 
-                console.error(
-                    "Database insert error:",
-                    videodbError
-                );
-
                 throw videodbError;
+
             }
 
 
@@ -310,94 +1278,141 @@
             );
 
 
-            // ==========================================
-            // START VIDEO ANALYSIS
-            // ==========================================
+            // ======================================
+            // CALL EDGE FUNCTION
+            // ======================================
+
+            status.textContent =
+                "💾 Saving analysis...";
+
 
             const {
                 data: analysisResponse,
                 error: analysisError
-            } = await supabaseClient.functions.invoke(
-                "analyze-video",
-                {
-                    body: {
-                        video_id: videoRecord.id
-                    }
-                }
-            );
+            } =
+                await supabaseClient
+                    .functions
+                    .invoke(
+                        "analyze-video",
+                        {
+                            body: {
+                                video_id:
+                                    videoRecord.id
+                            }
+                        }
+                    );
 
 
             if (analysisError) {
 
-                console.error(
-                    "Analysis function error:",
-                    analysisError
-                );
-
                 throw analysisError;
+
             }
 
 
             console.log(
-                "Analysis started:",
+                "Edge Function response:",
                 analysisResponse
             );
 
 
-            // ==========================================
-            // SUCCESS
-            // ==========================================
+            // ======================================
+            // SAVE REAL MEDIAPIPE DATA
+            // ======================================
+
+            const {
+                error: resultUpdateError
+            } =
+                await supabaseClient
+                    .from("videos")
+                    .update({
+
+                        analysis_result:
+                            mediaPipeResult,
+
+                        analyzed_at:
+                            new Date()
+                                .toISOString(),
+
+                        status:
+                            "analyzed"
+
+                    })
+                    .eq(
+                        "id",
+                        videoRecord.id
+                    );
+
+
+            if (resultUpdateError) {
+
+                throw resultUpdateError;
+
+            }
+
+
+            // ======================================
+            // COMPLETE
+            // ======================================
 
             status.innerHTML = `
-                ✅ <strong>Upload successful!</strong><br>
-                Your video is now stored in Supabase.
+
+                ✅ <strong>
+                    Swing processed successfully.
+                </strong>
+
+                <br>
+
+                MediaPipe analyzed
+                ${mediaPipeResult.video.detected_pose_frames}
+                usable pose frames.
+
             `;
 
-            status.style.color = "#16a34a";
-
-            console.log(
-                "Stored file path:",
-                data.path
-            );
+            status.style.color =
+                "#16a34a";
 
 
         } catch (error) {
 
             console.error(
-                "Upload failed:",
+                "Analysis/upload failed:",
                 error
             );
 
+
             status.innerHTML = `
-                ❌ <strong>Upload failed.</strong><br>
-                ${error.message || "Unknown error"}
+
+                ❌ <strong>
+                    Analysis failed.
+                </strong>
+
+                <br>
+
+                ${error.message ||
+                "Unknown error"}
+
             `;
 
-            status.style.color = "#dc2626";
+            status.style.color =
+                "#dc2626";
 
 
         } finally {
 
-            uploadButton.disabled = false;
+            uploadButton.disabled =
+                false;
 
         }
+
     }
 
-</script>
 
+    // ==========================================
+    // INITIALIZE
+    // ==========================================
 
-<!-- ==========================================
-     MEDIAPIPE TEST
-     ========================================== -->
-
-<script type="module">
-
-    import {
-        FilesetResolver,
-        PoseLandmarker
-    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm";
-
-    console.log("MediaPipe loaded successfully.");
+    initializeMediaPipe();
 
 </script>
 
