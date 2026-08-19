@@ -252,11 +252,11 @@
             status.style.color = "#2563eb";
 
             const {
-                FilesetResolver,
-                PoseLandmarker
-            } = await import(
-                `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/+esm`
-            );
+    FilesetResolver,
+    PoseLandmarker
+} = await import(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm"
+);
 
 
             const vision =
